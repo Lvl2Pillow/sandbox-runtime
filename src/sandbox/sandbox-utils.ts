@@ -8,28 +8,20 @@ import { logForDebugging } from '../utils/debug.js'
  * Dangerous files that should be protected from writes.
  * These files can be used for code execution or data exfiltration.
  */
-export const DANGEROUS_FILES = [
-  '.gitconfig',
-  '.bashrc',
-  '.bash_profile',
-  '.zshrc',
-  '.zprofile',
-  '.profile',
-  '.ripgreprc',
-  '.mcp.json',
-] as const
+export const DANGEROUS_FILES: string[] = []
 
 /**
  * Dangerous directories that should be protected from writes.
- * These directories contain sensitive configuration or executable files.
+ * Kept empty: the runtime ships no opinions; consumers opt in via
+ * filesystem.denyWrite.
  */
-export const DANGEROUS_DIRECTORIES = [] as const
+export const DANGEROUS_DIRECTORIES: string[] = []
 
 /**
  * Get the list of dangerous directories to deny writes to.
  */
 export function getDangerousDirectories(): string[] {
-  return [...DANGEROUS_DIRECTORIES, '.claude/commands', '.claude/agents']
+  return [...DANGEROUS_DIRECTORIES]
 }
 
 /**

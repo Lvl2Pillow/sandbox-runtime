@@ -275,6 +275,14 @@ async function linuxGetMandatoryDenyPaths(
     ...dangerousDirectories.map(d => path.resolve(cwd, d)),
   ]
 
+  // No mandatory patterns: the consumer opts into protection via
+  // filesystem.denyWrite. Skipping the ripgrep scan is required — with
+  // empty iglob filters, `rg --files` would return every file under cwd
+  // and they would all be turned into deny paths.
+  if (DANGEROUS_FILES.length === 0 && dangerousDirectories.length === 0) {
+    return denyPaths
+  }
+
   // Build iglob args for all patterns in one ripgrep call
   const iglobArgs: string[] = []
   for (const fileName of DANGEROUS_FILES) {

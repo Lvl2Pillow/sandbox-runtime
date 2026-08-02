@@ -139,14 +139,16 @@ describe.if(isSupportedPlatform)(
     async function runSandboxedWrite(
       filePath: string,
       content: string,
+      denyWithinAllow: string[] = [],
     ): Promise<{ success: boolean; stderr: string }> {
       const platform = getPlatform()
       const command = `echo '${content}' > '${filePath}'`
 
-      // Allow writes to current directory, but mandatory denies should still block dangerous files
+      // Allow writes to current directory; protection comes only from the
+      // configured denyWithinAllow (the runtime ships no mandatory denies).
       const writeConfig = {
         allowOnly: ['.'],
-        denyWithinAllow: [], // Empty - relying on mandatory denies
+        denyWithinAllow,
       }
 
       let wrappedCommand: string
@@ -178,73 +180,59 @@ describe.if(isSupportedPlatform)(
       }
     }
 
-    describe('Dangerous files should be blocked', () => {
-      it('blocks writes to .bashrc', async () => {
+    describe('Dangerous files are writable by default (no mandatory denies)', () => {
+      it('allows writes to .bashrc', async () => {
         const result = await runSandboxedWrite('.bashrc', MODIFIED_CONTENT)
+
+        expect(result.success).toBe(true)
+        expect(readFileSync('.bashrc', 'utf8').trim()).toBe(MODIFIED_CONTENT)
+      })
+
+      it('allows writes to .gitconfig', async () => {
+        const result = await runSandboxedWrite('.gitconfig', MODIFIED_CONTENT)
+
+        expect(result.success).toBe(true)
+        expect(readFileSync('.gitconfig', 'utf8').trim()).toBe(
+          MODIFIED_CONTENT,
+        )
+      })
+
+      it('allows writes to .zshrc', async () => {
+        const result = await runSandboxedWrite('.zshrc', MODIFIED_CONTENT)
+
+        expect(result.success).toBe(true)
+        expect(readFileSync('.zshrc', 'utf8').trim()).toBe(MODIFIED_CONTENT)
+      })
+
+      it('allows writes to .mcp.json', async () => {
+        const result = await runSandboxedWrite('.mcp.json', MODIFIED_CONTENT)
+
+        expect(result.success).toBe(true)
+        expect(readFileSync('.mcp.json', 'utf8').trim()).toBe(MODIFIED_CONTENT)
+      })
+    })
+
+    describe('Dangerous files are blocked when configured via denyWithinAllow', () => {
+      it('blocks writes to .bashrc', async () => {
+        const result = await runSandboxedWrite(
+          '.bashrc',
+          MODIFIED_CONTENT,
+          ['.bashrc'],
+        )
 
         expect(result.success).toBe(false)
         expect(readFileSync('.bashrc', 'utf8')).toBe(ORIGINAL_CONTENT)
       })
 
       it('blocks writes to .gitconfig', async () => {
-        const result = await runSandboxedWrite('.gitconfig', MODIFIED_CONTENT)
+        const result = await runSandboxedWrite(
+          '.gitconfig',
+          MODIFIED_CONTENT,
+          ['.gitconfig'],
+        )
 
         expect(result.success).toBe(false)
         expect(readFileSync('.gitconfig', 'utf8')).toBe(ORIGINAL_CONTENT)
-      })
-
-      it('blocks writes to .zshrc', async () => {
-        const result = await runSandboxedWrite('.zshrc', MODIFIED_CONTENT)
-
-        expect(result.success).toBe(false)
-        expect(readFileSync('.zshrc', 'utf8')).toBe(ORIGINAL_CONTENT)
-      })
-
-      it('blocks writes to .mcp.json', async () => {
-        const result = await runSandboxedWrite('.mcp.json', MODIFIED_CONTENT)
-
-        expect(result.success).toBe(false)
-        expect(readFileSync('.mcp.json', 'utf8')).toBe(ORIGINAL_CONTENT)
-      })
-
-      it('blocks writes to .bash_profile', async () => {
-        const result = await runSandboxedWrite(
-          '.bash_profile',
-          MODIFIED_CONTENT,
-        )
-
-        expect(result.success).toBe(false)
-        expect(readFileSync('.bash_profile', 'utf8')).toBe(ORIGINAL_CONTENT)
-      })
-
-      it('blocks writes to .zprofile', async () => {
-        const result = await runSandboxedWrite('.zprofile', MODIFIED_CONTENT)
-
-        expect(result.success).toBe(false)
-        expect(readFileSync('.zprofile', 'utf8')).toBe(ORIGINAL_CONTENT)
-      })
-
-      it('blocks writes to .profile', async () => {
-        const result = await runSandboxedWrite('.profile', MODIFIED_CONTENT)
-
-        expect(result.success).toBe(false)
-        expect(readFileSync('.profile', 'utf8')).toBe(ORIGINAL_CONTENT)
-      })
-
-      it('allows writes to .gitmodules', async () => {
-        const result = await runSandboxedWrite('.gitmodules', MODIFIED_CONTENT)
-
-        expect(result.success).toBe(true)
-        expect(readFileSync('.gitmodules', 'utf8').trim()).toBe(
-          MODIFIED_CONTENT,
-        )
-      })
-
-      it('blocks writes to .ripgreprc', async () => {
-        const result = await runSandboxedWrite('.ripgreprc', MODIFIED_CONTENT)
-
-        expect(result.success).toBe(false)
-        expect(readFileSync('.ripgreprc', 'utf8')).toBe(ORIGINAL_CONTENT)
       })
     })
 
@@ -273,23 +261,24 @@ describe.if(isSupportedPlatform)(
       })
     })
 
-    describe('Dangerous directories should be blocked', () => {
-      it('allows writes to .vscode/', async () => {
+    describe('Dangerous directories are writable by default', () => {
+      it('allows writes to .claude/commands/', async () => {
         const result = await runSandboxedWrite(
-          '.vscode/settings.json',
+          '.claude/commands/test.md',
           MODIFIED_CONTENT,
         )
 
         expect(result.success).toBe(true)
-        expect(readFileSync('.vscode/settings.json', 'utf8').trim()).toBe(
+        expect(readFileSync('.claude/commands/test.md', 'utf8').trim()).toBe(
           MODIFIED_CONTENT,
         )
       })
 
-      it('blocks writes to .claude/commands/', async () => {
+      it('blocks writes to .claude/commands/ when configured', async () => {
         const result = await runSandboxedWrite(
           '.claude/commands/test.md',
           MODIFIED_CONTENT,
+          ['.claude/commands'],
         )
 
         expect(result.success).toBe(false)
@@ -298,27 +287,16 @@ describe.if(isSupportedPlatform)(
         )
       })
 
-      it('blocks writes to .claude/agents/', async () => {
+      it('blocks writes to .claude/agents/ when configured', async () => {
         const result = await runSandboxedWrite(
           '.claude/agents/test-agent.md',
           MODIFIED_CONTENT,
+          ['.claude/agents'],
         )
 
         expect(result.success).toBe(false)
         expect(readFileSync('.claude/agents/test-agent.md', 'utf8')).toBe(
           ORIGINAL_CONTENT,
-        )
-      })
-
-      it('allows writes to .idea/', async () => {
-        const result = await runSandboxedWrite(
-          '.idea/workspace.xml',
-          MODIFIED_CONTENT,
-        )
-
-        expect(result.success).toBe(true)
-        expect(readFileSync('.idea/workspace.xml', 'utf8').trim()).toBe(
-          MODIFIED_CONTENT,
         )
       })
     })
@@ -1050,6 +1028,10 @@ describe.if(isSupportedPlatform)(
 )
 
 describe('macGetMandatoryDenyPatterns - Unit Tests', () => {
+  it('returns no mandatory deny patterns (protection is consumer-configured)', () => {
+    expect(macGetMandatoryDenyPatterns()).toEqual([])
+  })
+
   it('does not include .git/config in deny patterns', () => {
     const patterns = macGetMandatoryDenyPatterns()
 
